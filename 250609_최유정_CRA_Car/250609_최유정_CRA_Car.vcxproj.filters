@@ -16,16 +16,45 @@
     <Filter Include="테스트파일">
       <UniqueIdentifier>{0cd92bf2-c4ce-4f67-96cc-f6a572f86d08}</UniqueIdentifier>
     </Filter>
+    <Filter Include="NewFilter1">
+      <UniqueIdentifier>{8c74b357-2cf0-4058-9d3d-5389166223ab}</UniqueIdentifier>
+    </Filter>
   </ItemGroup>
   <ItemGroup>
     <None Include="packages.config" />
   </ItemGroup>
   <ItemGroup>
-    <ClCompile Include="cal_test.cpp">
+    <ClCompile Include="test.cpp">
       <Filter>테스트파일</Filter>
     </ClCompile>
-    <ClCompile Include="Cal.cpp">
+    <ClCompile Include="assemble.cpp">
       <Filter>소스 파일</Filter>
     </ClCompile>
+    <ClCompile Include="$(MSBuildThisFileDirectory)..\..\lib\native\src\gtest\gtest-all.cc">
+      <Filter>리소스 파일</Filter>
+    </ClCompile>
+    <ClCompile Include="$(MSBuildThisFileDirectory)..\..\lib\native\src\gmock\gmock-all.cc">
+      <Filter>리소스 파일</Filter>
+    </ClCompile>
+    <ClCompile Include="CarFactory.cpp">
+      <Filter>헤더 파일</Filter>
+    </ClCompile>
+  </ItemGroup>
+  <ItemGroup>
+    <ClInclude Include="Car.cpp">
+      <Filter>헤더 파일</Filter>
+    </ClInclude>
+    <ClInclude Include="Type.h">
+      <Filter>헤더 파일</Filter>
+    </ClInclude>
+    <ClInclude Include="Engine.cpp">
+      <Filter>헤더 파일</Filter>
+    </ClInclude>
+    <ClInclude Include="Brake.cpp">
+      <Filter>헤더 파일</Filter>
+    </ClInclude>
+    <ClInclude Include="Steering.cpp">
+      <Filter>헤더 파일</Filter>
+    </ClInclude>
   </ItemGroup>
 </Project>

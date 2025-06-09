@@ -130,8 +130,16 @@
     <None Include="packages.config" />
   </ItemGroup>
   <ItemGroup>
-    <ClCompile Include="Cal.cpp" />
-    <ClCompile Include="cal_test.cpp" />
+    <ClCompile Include="assemble.cpp" />
+    <ClCompile Include="test.cpp" />
+    <ClCompile Include="CarFactory.cpp" />
+  </ItemGroup>
+  <ItemGroup>
+    <ClInclude Include="Brake.cpp" />
+    <ClInclude Include="Car.cpp" />
+    <ClInclude Include="Engine.cpp" />
+    <ClInclude Include="Steering.cpp" />
+    <ClInclude Include="Type.h" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">
