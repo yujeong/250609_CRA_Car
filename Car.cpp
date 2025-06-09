@@ -8,7 +8,6 @@
 class Car
 {
 public:
-
 	virtual bool test() = 0;
 	virtual std::string getCarType() = 0;
 
@@ -28,10 +27,15 @@ public:
 		}
 	}
 
-	// for test
-	bool IsBrokenEngine()
-	{
-		return isBrokenEngine;
+	std::string getEngineCompany() {
+		return engine->getCompany();
+	}
+
+	std::string getBrakeCompany() {
+		return brake->getCompany();
+	}
+	std::string getSteeringCompany() {
+		return steering->getCompany();
 	}
 
 protected:
@@ -48,7 +52,7 @@ protected:
 		}
 	}
 	void checkBrokenEngine() {
-		if (engine->getCompany() == "BrokenEngine") {
+		if (engine->getCompany() == "BROKEN") {
 			isBrokenEngine = true;
 		}
 	}

@@ -1,3 +1,5 @@
+#pragma once
+#include <iostream>
 #include <stdio.h>
 #include <string.h>
 #include <stdlib.h>
@@ -10,8 +12,9 @@
 
 void delay(int ms);
 void printMenu(int step);
+int inputMenu(int& answer);
 void HandleStep(int& step, int answer);
-bool isExit(char buf[100]);
+bool IsInputNumber(char* buf, int& answer);
 
 void selectCarType(int answer, int& step);
 void selectEngine(int answer, int& step);
@@ -48,51 +51,20 @@ void delay(int ms)
 }
 
 int main()
-{
-    char buf[100];
+{    
+    int answer;
     int step = CarType_Q;
 
     while (1)
     {
         printMenu(step);
 
-        fgets(buf, sizeof(buf), stdin);
-
-        // 엔터 개행문자 제거
-        char* context = nullptr;
-        strtok_s(buf, "\r", &context);
-        strtok_s(buf, "\n", &context);
-
-        if (!strcmp(buf, "exit"))
-        {
-            printf("바이바이\n");
-            break;
-        }
-
-        // 숫자로 된 대답인지 확인
-        char* checkNumber;
-        int answer = strtol(buf, &checkNumber, 10); // 문자열을 10진수로 변환
-
-        // 입력받은 문자가 숫자가 아니라면
-        if (*checkNumber != '\0')
-        {
-            printf("ERROR :: 숫자만 입력 가능\n");
-            delay(800);
-            continue;
-        }
+        int result = inputMenu(answer);
+        if (result == -1) break;
+        if (result == -2) continue;
 
         HandleStep(step, answer);
     }
-}
-
-
-bool isExit(char* buf) {
-    if (!strcmp(buf, "exit"))
-    {
-        printf("바이바이\n");
-        return true;
-    }
-    return false;
 }
 
 void HandleStep(int& step, int answer)
@@ -231,7 +203,6 @@ void printMenu(int step)
     if (step == CarType_Q)
     {
         printf(CLEAR_SCREEN);
-
         printf("        ______________\n");
         printf("       /|            | \n");
         printf("  ____/_|_____________|____\n");
@@ -281,7 +252,34 @@ void printMenu(int step)
     }
     printf("===============================\n");
 
-    printf("INPUT > ");
-    
+    printf("INPUT > ");    
+}
+
+int inputMenu(int& answer)
+{       
+    char buf[100];
+    fgets(buf, sizeof(buf), stdin);
+
+    char* context = nullptr;
+    strtok_s(buf, "\r", &context);
+    strtok_s(buf, "\n", &context);
+
+    if (!strcmp(buf, "exit"))
+    {
+        printf("바이바이\n");
+        return -1;
+    }
+
+    char* checkNumber;
+    answer = strtol(buf, &checkNumber, 10); 
+
+    if (*checkNumber != '\0')
+    {
+        printf("ERROR :: 숫자만 입력 가능\n");
+        delay(800);
+        return -2;
+    }
+
+    return 0;
 }
 #endif

@@ -40,6 +40,6 @@ class BrokenEngine : public Engine
 public:
 	std::string getCompany() override
 	{
-		return "BrokenEngine";
+		return "BROKEN";
 	}
 };

@@ -2,8 +2,8 @@
 class Brake
 {
 public:
+	Brake() = default;
 	virtual std::string getCompany() = 0;
-
 };
 
 class MandoBrake : public Brake

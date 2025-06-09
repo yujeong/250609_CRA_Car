@@ -8,24 +8,25 @@ public:
 		Engine* engine = createEngine(e);
 		Brake* brake = createBrake(b);
 		Steering* steering = createSteering(s);
+
+		if (engine == nullptr || brake == nullptr || steering == nullptr)
+			return nullptr;
+
 		switch (carType)
 		{
 		case SEDAN:	
 			return new Sedan(engine, brake, steering);
-			break;
 
 		case SUV:
 			return new Suv(engine, brake, steering);
-			break;
 
 		case TRUCK:
 			return new Truck(engine, brake, steering);
-			break;
-
-		default:
-			break;
 		}
+
+		return nullptr;
 	}
+
 private:
 	Engine* createEngine(int engine)
 	{
@@ -33,20 +34,18 @@ private:
 		{
 		case GM:
 			return new GMEngine();
-			break;
 
 		case TOYOTA:
 			return new ToyotaEngine();
-			break;
 
 		case WIA:
 			return new WIAEngine();
-			break;
 
-		default:
+		case BROKEN_ENGINE:
 			return new BrokenEngine();
-			break;
 		}
+
+		return nullptr;
 	}
 
 	Brake* createBrake(int brake)
@@ -55,37 +54,28 @@ private:
 		{
 		case MANDO:
 			return new MandoBrake();
-			break;
 
 		case CONTINENTAL:
 			return new ContinentalBrake();
-			break;
 
 		case BOSCH_B:
 			return new BoschBrake();
-			break;
-
-		default:
-			break;
 		}
+
+		return nullptr;
 	}
 
 	Steering* createSteering(int steering)
 	{
-
 		switch (steering)
 		{
 		case BOSCH_S:
 			return new BoschStreering();
-			break;
 
 		case MOBIS:
 			return new MobisStreering();
-			break;
-
-		default:
-			break;
 		}
+		return nullptr;
 	}
 
 };
