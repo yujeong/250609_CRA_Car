@@ -10,24 +10,30 @@ using NinjaTrader.NinjaScript.DrawingTools;
 #endregion
 
 /*
- * [전략 개요]
+ * [전략 개요] RSI_VWAP_EMA – MNQ 5계약 분할 청산
  *
  * ▶ 15분봉 (방향 판단)
- *   - 20EMA + VWAP 위 → 상승장 바이어스
- *   - 20EMA + VWAP 아래 → 하락장 바이어스
+ *   - 종가 > 20EMA AND > VWAP → 상승장
+ *   - 종가 < 20EMA AND < VWAP → 하락장
  *
  * ▶ 3분봉 (진입)
- *   - 20EMA, VWAP, RSI(14)
+ *   - RSI(14) 눌림/반등 구간에서 방향 전환 확인
  *
- * ▶ 롱 진입 조건
- *   1) 15분봉: 종가 > 20EMA AND 종가 > VWAP
- *   2) 3분봉: 전봉 RSI가 LongRsiMin~LongRsiMax 구간 (기본 40~50, 눌림)
- *   3) 3분봉: 현재 RSI > 전봉 RSI (상승 전환)
+ * ▶ 롱 진입
+ *   1) 15분봉 상승장
+ *   2) 전봉 RSI 40~50 (눌림)
+ *   3) 현재 RSI 상승 전환
  *
- * ▶ 숏 진입 조건
- *   1) 15분봉: 종가 < 20EMA AND 종가 < VWAP
- *   2) 3분봉: 전봉 RSI가 ShortRsiMin~ShortRsiMax 구간 (기본 50~60, 반등)
- *   3) 3분봉: 현재 RSI < 전봉 RSI (하락 전환)
+ * ▶ 숏 진입
+ *   1) 15분봉 하락장
+ *   2) 전봉 RSI 50~60 (반등)
+ *   3) 현재 RSI 하락 전환
+ *
+ * ▶ 청산 구조 (MNQ 5계약, 1pt = 4 ticks = $2/계약)
+ *   - 손절: -20pt  → 전체 손실 $200 (5계약 × $2 × 20)
+ *   - PT1:  +30pt  → 3계약 청산, 수익 $180  (손익비 1:1.5)
+ *   - PT2:  +40pt  → 2계약 청산, 수익 $160  (손익비 1:2)
+ *   - 평균 익절 34pt, 평균 손익비 약 1:1.7
  *
  * ▶ 설치 경로
  *   Documents\NinjaTrader 8\bin\Custom\Strategies\RSI_VWAP_EMA.cs
@@ -37,47 +43,71 @@ namespace NinjaTrader.NinjaScript.Strategies
 {
     public class RSI_VWAP_EMA : Strategy
     {
-        // ── 인디케이터 ──────────────────────────────────────────────
-        private EMA  ema3;      // 3분봉 20EMA
-        private EMA  ema15;     // 15분봉 20EMA
-        private VWAP vwap3;     // 3분봉 VWAP
-        private VWAP vwap15;    // 15분봉 VWAP
-        private RSI  rsi3;      // 3분봉 RSI(14)
+        // ── 인디케이터 ───────────────────────────────────────────────
+        private EMA  ema3;
+        private EMA  ema15;
+        private VWAP vwap3;
+        private VWAP vwap15;
+        private RSI  rsi3;
+
+        // PT1 청산 여부 추적 (PT2 손절 브레이크이븐 이동용)
+        private bool pt1Hit;
+        private double entryPrice;
 
         protected override void OnStateChange()
         {
             if (State == State.SetDefaults)
             {
-                Description                  = "15min bias (20EMA+VWAP) + 3min RSI pullback/bounce entry";
+                Description                  = "15min bias (20EMA+VWAP) + 3min RSI entry | MNQ 5계약 분할청산";
                 Name                         = "RSI_VWAP_EMA";
                 Calculate                    = Calculate.OnBarClose;
-                EntriesPerDirection          = 1;
+                EntriesPerDirection          = 2;   // PT1용 + PT2용
                 EntryHandling                = EntryHandling.AllEntries;
                 IsExitOnSessionCloseStrategy = true;
                 ExitOnSessionCloseSeconds    = 30;
 
-                // 파라미터 기본값
-                EmaPeriod         = 20;
-                RsiPeriod         = 14;
-                RsiSmoothing      = 3;
-                LongRsiMin        = 40;
-                LongRsiMax        = 50;
-                ShortRsiMin       = 50;
-                ShortRsiMax       = 60;
-                UseStopAndTarget  = true;
-                StopLossTicks     = 20;
-                ProfitTargetTicks = 40;
+                // 인디케이터
+                EmaPeriod    = 20;
+                RsiPeriod    = 14;
+                RsiSmoothing = 3;
+
+                // RSI 구간
+                LongRsiMin  = 40;
+                LongRsiMax  = 50;
+                ShortRsiMin = 50;
+                ShortRsiMax = 60;
+
+                // 손익 설정 (포인트 단위, MNQ 기준)
+                StopLossPoints = 20;
+                PT1Points      = 30;   // 1:1.5
+                PT2Points      = 40;   // 1:2
+                MoveToBreakEven = true;  // PT1 도달 시 나머지 손절 → 브레이크이븐
+
+                // 수량 (합계 5계약)
+                Qty1 = 3;   // PT1에서 청산
+                Qty2 = 2;   // PT2에서 청산
+
+                // MNQ: 1포인트 = 4틱 (틱사이즈 0.25)
+                TicksPerPoint = 4;
             }
             else if (State == State.Configure)
             {
-                // 15분봉 데이터 추가 (인덱스 1)
                 AddDataSeries(BarsPeriodType.Minute, 15);
 
-                if (UseStopAndTarget)
-                {
-                    SetStopLoss(CalculationMode.Ticks, StopLossTicks);
-                    SetProfitTarget(CalculationMode.Ticks, ProfitTargetTicks);
-                }
+                int slTicks  = StopLossPoints * TicksPerPoint;
+                int pt1Ticks = PT1Points      * TicksPerPoint;
+                int pt2Ticks = PT2Points      * TicksPerPoint;
+
+                // 신호명별 손절/익절 설정
+                SetStopLoss("Long_1",  CalculationMode.Ticks, slTicks,  false);
+                SetStopLoss("Long_2",  CalculationMode.Ticks, slTicks,  false);
+                SetProfitTarget("Long_1",  CalculationMode.Ticks, pt1Ticks);
+                SetProfitTarget("Long_2",  CalculationMode.Ticks, pt2Ticks);
+
+                SetStopLoss("Short_1", CalculationMode.Ticks, slTicks,  false);
+                SetStopLoss("Short_2", CalculationMode.Ticks, slTicks,  false);
+                SetProfitTarget("Short_1", CalculationMode.Ticks, pt1Ticks);
+                SetProfitTarget("Short_2", CalculationMode.Ticks, pt2Ticks);
             }
             else if (State == State.DataLoaded)
             {
@@ -91,47 +121,76 @@ namespace NinjaTrader.NinjaScript.Strategies
 
         protected override void OnBarUpdate()
         {
-            // 3분봉(기본 시리즈)만 처리
             if (BarsInProgress != 0) return;
-
-            // 인디케이터 초기화 대기
             if (CurrentBars[0] < EmaPeriod + 5 || CurrentBars[1] < EmaPeriod + 5) return;
 
-            // ── 15분봉: 장 방향 판단 ─────────────────────────────
+            // ── 15분봉: 장 방향 ──────────────────────────────────────
             double close15   = Closes[1][0];
-            bool bullishBias = close15 > ema15[0] && close15 > vwap15[0];  // 상승장
-            bool bearishBias = close15 < ema15[0] && close15 < vwap15[0];  // 하락장
+            bool bullishBias = close15 > ema15[0] && close15 > vwap15[0];
+            bool bearishBias = close15 < ema15[0] && close15 < vwap15[0];
 
-            // ── 3분봉: RSI 상태 ──────────────────────────────────
+            // ── 3분봉: RSI 전환 감지 ──────────────────────────────────
             double currRsi = rsi3[0];
             double prevRsi = rsi3[1];
 
-            // 롱 조건: 전봉 RSI가 눌림 구간(40~50)에 있었고, 현재 RSI가 상승 전환
-            bool prevInLongZone = prevRsi >= LongRsiMin && prevRsi <= LongRsiMax;
-            bool rsiTurnedUp    = currRsi > prevRsi;
+            bool prevInLongZone  = prevRsi >= LongRsiMin  && prevRsi <= LongRsiMax;
+            bool rsiTurnedUp     = currRsi > prevRsi;
 
-            // 숏 조건: 전봉 RSI가 반등 구간(50~60)에 있었고, 현재 RSI가 하락 전환
             bool prevInShortZone = prevRsi >= ShortRsiMin && prevRsi <= ShortRsiMax;
             bool rsiTurnedDown   = currRsi < prevRsi;
 
-            // ── 진입 ─────────────────────────────────────────────
+            // ── 브레이크이븐 이동: PT1 청산 후 PT2 손절을 진입가로 ──────
+            if (MoveToBreakEven && pt1Hit && Position.MarketPosition != MarketPosition.Flat)
+            {
+                double bePrice = entryPrice;
+                if (Position.MarketPosition == MarketPosition.Long)
+                    ExitLongStopMarket(0, true, Qty2, bePrice, "BE_Stop", "Long_2");
+                else if (Position.MarketPosition == MarketPosition.Short)
+                    ExitShortStopMarket(0, true, Qty2, bePrice, "BE_Stop", "Short_2");
+            }
+
+            // ── 진입 ─────────────────────────────────────────────────
             if (Position.MarketPosition == MarketPosition.Flat)
             {
-                // 롱 진입
+                pt1Hit = false;
+
+                // 롱: 5계약 진입 (3+2 분할)
                 if (bullishBias && prevInLongZone && rsiTurnedUp)
                 {
-                    EnterLong(1, "Long");
+                    entryPrice = Close[0];
+                    EnterLong(Qty1, "Long_1");
+                    EnterLong(Qty2, "Long_2");
                     Draw.ArrowUp(this, "L_" + CurrentBar, false, 0,
                         Low[0] - TickSize * 3, Brushes.LimeGreen);
+                    Print(Time[0] + " [LONG] 진입 @ " + Close[0]
+                        + " | RSI: " + currRsi.ToString("F1")
+                        + " | 15min: EMA=" + ema15[0].ToString("F2")
+                        + " VWAP=" + vwap15[0].ToString("F2"));
                 }
-                // 숏 진입
+                // 숏: 5계약 진입 (3+2 분할)
                 else if (bearishBias && prevInShortZone && rsiTurnedDown)
                 {
-                    EnterShort(1, "Short");
+                    entryPrice = Close[0];
+                    EnterShort(Qty1, "Short_1");
+                    EnterShort(Qty2, "Short_2");
                     Draw.ArrowDown(this, "S_" + CurrentBar, false, 0,
                         High[0] + TickSize * 3, Brushes.Red);
+                    Print(Time[0] + " [SHORT] 진입 @ " + Close[0]
+                        + " | RSI: " + currRsi.ToString("F1")
+                        + " | 15min: EMA=" + ema15[0].ToString("F2")
+                        + " VWAP=" + vwap15[0].ToString("F2"));
                 }
             }
+        }
+
+        protected override void OnExecutionUpdate(
+            Execution execution, string executionId, double price,
+            int quantity, MarketPosition marketPosition,
+            string orderId, DateTime time)
+        {
+            // PT1 청산 감지 → 브레이크이븐 플래그 설정
+            if (execution.Name == "Long_1" || execution.Name == "Short_1")
+                pt1Hit = true;
         }
 
         #region Properties
@@ -172,18 +231,38 @@ namespace NinjaTrader.NinjaScript.Strategies
         public double ShortRsiMax { get; set; }
 
         [NinjaScriptProperty]
-        [Display(Name = "Use Stop & Target", GroupName = "Risk", Order = 8)]
-        public bool UseStopAndTarget { get; set; }
+        [Range(1, int.MaxValue)]
+        [Display(Name = "Stop Loss (포인트)", GroupName = "Risk / MNQ", Order = 8)]
+        public int StopLossPoints { get; set; }
 
         [NinjaScriptProperty]
         [Range(1, int.MaxValue)]
-        [Display(Name = "Stop Loss (Ticks)", GroupName = "Risk", Order = 9)]
-        public int StopLossTicks { get; set; }
+        [Display(Name = "PT1 익절 (포인트) · Qty1 계약 청산", GroupName = "Risk / MNQ", Order = 9)]
+        public int PT1Points { get; set; }
 
         [NinjaScriptProperty]
         [Range(1, int.MaxValue)]
-        [Display(Name = "Profit Target (Ticks)", GroupName = "Risk", Order = 10)]
-        public int ProfitTargetTicks { get; set; }
+        [Display(Name = "PT2 익절 (포인트) · Qty2 계약 청산", GroupName = "Risk / MNQ", Order = 10)]
+        public int PT2Points { get; set; }
+
+        [NinjaScriptProperty]
+        [Display(Name = "PT1 도달 시 나머지 손절 → 브레이크이븐", GroupName = "Risk / MNQ", Order = 11)]
+        public bool MoveToBreakEven { get; set; }
+
+        [NinjaScriptProperty]
+        [Range(1, int.MaxValue)]
+        [Display(Name = "Qty1 (PT1 계약 수)", GroupName = "Risk / MNQ", Order = 12)]
+        public int Qty1 { get; set; }
+
+        [NinjaScriptProperty]
+        [Range(1, int.MaxValue)]
+        [Display(Name = "Qty2 (PT2 계약 수)", GroupName = "Risk / MNQ", Order = 13)]
+        public int Qty2 { get; set; }
+
+        [NinjaScriptProperty]
+        [Range(1, int.MaxValue)]
+        [Display(Name = "Ticks Per Point (MNQ=4)", GroupName = "Risk / MNQ", Order = 14)]
+        public int TicksPerPoint { get; set; }
 
         #endregion
     }
